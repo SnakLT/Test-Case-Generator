@@ -1,0 +1,70 @@
+import os
+import subprocess
+import time
+import threading
+
+
+PROD_INST_LINK = {'FR' : '26', 'CH' : '27', 'FI' : '28', 'SE': '29', 'NO' : '30',
+                  'HU' : '31', 'ES' : '32', 'DE' : '33'}
+
+EMAIL = 'emails'
+EMAIL_EXECUTION = 'Files_in_PROD.ahk'
+
+class Checker:
+
+    def __init__(self, file_name):
+        self.count_dict = {file_name[1] : 0}
+        self.instance, self.file_name = file_name
+        
+        
+    def check_file(self):
+        
+        while self.count_dict[self.file_name] != 3:
+            link = f'\\\\DEFRA1SPDB0{PROD_INST_LINK[self.instance]}.groupad1.com\\GLM\\IMPORT\\Operations'
+            folder = os.listdir(link)
+            
+            if self.file_name in folder:
+                self.count_dict[self.file_name] += 1
+                subprocess.run([EMAIL_EXECUTION, EMAIL, self.instance, link], shell=True)
+            else:
+                break
+            time.sleep(60 * 60)
+                
+
+def check_prod():
+
+    file_set = set()
+
+    for inst in PROD_INST_LINK:
+        link = f'\\\\DEFRA1SPDB0{PROD_INST_LINK[inst]}.groupad1.com\\GLM\\IMPORT\\Operations'
+        files_in_folder = os.listdir(link)
+        debts_files = [(inst, file) for file in files_in_folder if '_DEBT_ITEMS_' in file]        
+        file_set.update(debts_files)
+        
+    return file_set
+
+
+def start():
+    
+    main_set = set()
+    while True:
+        check_set = check_prod()
+        for file_name in check_set:
+            if file_name not in main_set:
+                t = threading.Thread(target= Checker(file_name).check_file)
+                t.start()
+            main_set.add(file_name)
+        if not check_set:
+            main_set.clear()
+        time.sleep(60)
+
+
+if __name__ == '__main__':
+    start()
+
+
+
+
+
+
+
